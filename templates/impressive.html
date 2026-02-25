@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlindAssist - AI Vision System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #0f1114;
+            --dark-lighter: #1a1d29;
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--dark);
+            color: #ebedf0;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 0;
+            background: linear-gradient(45deg, #0f1114 25%, transparent 25%, transparent 75%, #0f1114 75%, #0f1114),
+                        linear-gradient(45deg, #0f1114 25%, transparent 25%, transparent 75%, #0f1114 75%, #0f1114);
+            background-size: 60px 60px;
+            background-position: 0 0, 30px 30px;
+            opacity: 0.03;
+            animation: bgMove 20s linear infinite;
+        }
+
+        @keyframes bgMove {
+            0% { background-position: 0 0, 30px 30px; }
+            100% { background-position: 60px 60px, 90px 90px; }
+        }
+
+        /* Particle System */
+        .particles {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--primary);
+            border-radius: 50%;
+            opacity: 0;
+            animation: floatUp 8s linear infinite;
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 0;
+                transform: translateY(100vh) scale(0);
+            }
+            10% {
+                opacity: 1;
+                transform: translateY(90vh) scale(1);
+            }
+            90% {
+                opacity: 1;
+                transform: translateY(10vh) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(0) scale(0);
+            }
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(31, 41, 55, 0.95));
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--glass-border);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .logo h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .status-indicator:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--secondary);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 10px var(--secondary);
+        }
+
+        /* Main Container */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1800px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Video Section */
+        .video-section {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .video-section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%;
+            background: linear-gradient(135deg, #1a1d29, #0f1114);
+            overflow: hidden;
+        }
+
+        #video-feed {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: all 0.3s ease;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            right: 1rem;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .video-stats {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            padding: 0.75rem 1.25rem;
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            font-size: 0.9rem;
+            display: flex;
+            gap: 1.5rem;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .stat-label {
+            color: #9ca3af;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            color: #ebedf0;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .panel {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .panel:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        }
+
+        .panel-header {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: #ebedf0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Detection Items */
+        .detection-item {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .detection-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.05));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .detection-item:hover::before {
+            opacity: 1;
+        }
+
+        .detection-item:hover {
+            transform: translateX(8px) scale(1.02);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .detection-item.dangerous {
+            border-color: var(--danger);
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
+            animation: dangerPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes dangerPulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(239, 68, 68, 0.6); }
+        }
+
+        .detection-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            position: relative;
+            z-index: 1;
+        }
+
+        .detection-icon.safe { 
+            background: linear-gradient(135deg, var(--secondary), #059669);
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+        }
+        .detection-icon.warning { 
+            background: linear-gradient(135deg, var(--warning), #d97706);
+            box-shadow: 0 10px 20px rgba(245, 158, 11, 0.3);
+        }
+        .detection-icon.danger { 
+            background: linear-gradient(135deg, var(--danger), #dc2626);
+            box-shadow: 0 10px 20px rgba(239, 68, 68, 0.3);
+        }
+
+        .detection-info {
+            flex: 1;
+            position: relative;
+            z-index: 1;
+        }
+
+        .detection-name {
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            font-size: 1.1rem;
+        }
+
+        .detection-details {
+            font-size: 0.9rem;
+            color: #9ca3af;
+            font-weight: 500;
+        }
+
+        /* Controls */
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 1rem 1.25rem;
+            border: none;
+            border-radius: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            color: #ebedf0;
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn.active {
+            background: linear-gradient(135deg, var(--secondary), #059669);
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        /* Slider */
+        .slider-control {
+            margin-top: 1.5rem;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--glass);
+            outline: none;
+            -webkit-appearance: none;
+            border: 1px solid var(--glass-border);
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Voice Log */
+        .voice-log {
+            max-height: 250px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .voice-log::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .voice-log::-webkit-scrollbar-track {
+            background: var(--glass);
+            border-radius: 3px;
+        }
+
+        .voice-log::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 3px;
+        }
+
+        .log-item {
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            font-size: 0.9rem;
+            border-left: 4px solid var(--primary);
+            transition: all 0.3s ease;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .log-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .log-time {
+            color: #6b7280;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            padding: 1rem 1.5rem;
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .connection-status:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--secondary);
+            box-shadow: 0 0 10px var(--secondary);
+        }
+
+        .connection-dot.disconnected {
+            background: var(--danger);
+            box-shadow: 0 0 10px var(--danger);
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem;
+            }
+            
+            .main-container {
+                padding: 1rem;
+                gap: 1rem;
+            }
+            
+            .sidebar {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo h1 {
+                font-size: 1.4rem;
+            }
+        }
+
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--glass-border);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Scan Line Effect */
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            animation: scan 3s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div class="particles" id="particles"></div>
+    
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">🦯</div>
+            <h1>BlindAssist</h1>
+        </div>
+        <div class="status-indicator">
+            <div class="status-dot"></div>
+            <span id="status-text">System Active</span>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <section class="video-section">
+            <div class="video-container">
+                <img id="video-feed" src="" alt="Camera feed">
+                <div class="scan-line"></div>
+                <div class="video-overlay">
+                    <div class="video-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">FPS:</span>
+                            <span class="stat-value" id="fps">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">MODE:</span>
+                            <span class="stat-value" id="mode-display">DETECT</span>
+                        </div>
+                    </div>
+                    <div class="video-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">CONF:</span>
+                            <span class="stat-value" id="conf-display">45%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">OBJECTS:</span>
+                            <span class="stat-value" id="object-count">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="sidebar">
+            <div class="panel">
+                <h2 class="panel-header">🎯 Live Detections</h2>
+                <div id="detections-list">
+                    <p style="color: #6b7280; text-align: center; padding: 2rem 0;">
+                        No objects detected yet
+                    </p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2 class="panel-header">🎮 Control Center</h2>
+                <div class="controls">
+                    <button id="toggle-mode" class="btn btn-secondary">
+                        <span>🔄</span> Toggle Mode
+                    </button>
+                    <button id="describe-scene" class="btn btn-primary">
+                        <span>🔍</span> Describe Scene
+                    </button>
+                    <button id="toggle-voice" class="btn btn-secondary">
+                        <span>🔊</span> Voice ON
+                    </button>
+                    <button id="test-voice" class="btn btn-secondary">
+                        <span>🎤</span> Test Voice
+                    </button>
+                </div>
+                <div class="slider-control">
+                    <div class="slider-label">
+                        <span>Confidence Threshold</span>
+                        <span id="confidence-value">45%</span>
+                    </div>
+                    <input type="range" id="confidence-slider" class="slider" 
+                           min="10" max="95" value="45" step="5">
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2 class="panel-header">🔊 Voice Log</h2>
+                <div id="voice-log" class="voice-log">
+                    <p style="color: #6b7280; text-align: center; padding: 1rem 0;">
+                        Voice announcements will appear here
+                    </p>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <div class="connection-status">
+        <div class="connection-dot" id="connection-dot"></div>
+        <span id="connection-text">Connected</span>
+    </div>
+
+    <script>
+        // Particle System
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 8 + 's';
+                particle.style.animationDuration = (8 + Math.random() * 4) + 's';
+                particlesContainer.appendChild(particle);
+            }
+        }
+        createParticles();
+
+        // Socket.IO connection
+        const socket = io();
+        let currentMode = 'detect';
+        let currentConfidence = 0.45;
+        
+        // Text-to-Speech setup
+        let speechEnabled = true;
+        let speechQueue = [];
+        let isSpeaking = false;
+        
+        // Check for speech synthesis support
+        if ('speechSynthesis' in window) {
+            console.log('Speech synthesis supported');
+        } else {
+            console.log('Speech synthesis not supported');
+            speechEnabled = false;
+        }
+
+        // DOM elements
+        const videoFeed = document.getElementById('video-feed');
+        const fpsDisplay = document.getElementById('fps');
+        const modeDisplay = document.getElementById('mode-display');
+        const confDisplay = document.getElementById('conf-display');
+        const objectCount = document.getElementById('object-count');
+        const detectionsList = document.getElementById('detections-list');
+        const voiceLog = document.getElementById('voice-log');
+        const confidenceSlider = document.getElementById('confidence-slider');
+        const confidenceValue = document.getElementById('confidence-value');
+        const connectionDot = document.getElementById('connection-dot');
+        const connectionText = document.getElementById('connection-text');
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            connectionDot.classList.remove('disconnected');
+            connectionText.textContent = 'Connected';
+            
+            // Announce system ready
+            setTimeout(() => {
+                if (speechEnabled) {
+                    speak("Blind assist system active. Scanning ahead.", true);
+                }
+            }, 1000);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            connectionDot.classList.add('disconnected');
+            connectionText.textContent = 'Disconnected';
+        });
+
+        socket.on('frame', (data) => {
+            // Update video feed
+            videoFeed.src = `data:image/jpeg;base64,${data.image}`;
+            
+            // Update stats
+            fpsDisplay.textContent = data.fps.toFixed(1);
+            modeDisplay.textContent = data.mode.toUpperCase();
+            confDisplay.textContent = `${Math.round(data.confidence * 100)}%`;
+            objectCount.textContent = data.detections.length;
+            
+            // Update detections list
+            updateDetectionsList(data.detections);
+        });
+
+        socket.on('detection', (data) => {
+            addVoiceLogEntry(data.message, data.dangerous);
+            // Speak the detection with priority for dangerous objects
+            speak(data.message, data.dangerous);
+        });
+
+        socket.on('scene_description', (data) => {
+            addVoiceLogEntry(data.message, false);
+            // Speak scene description
+            speak(data.message, false);
+        });
+
+        socket.on('mode_change', (data) => {
+            currentMode = data.mode;
+            modeDisplay.textContent = data.mode.toUpperCase();
+            updateModeButton();
+        });
+
+        // Helper functions
+        function speak(text, priority = false) {
+            if (!speechEnabled) return;
+            
+            // Stop current speech if priority
+            if (priority && isSpeaking) {
+                window.speechSynthesis.cancel();
+                speechQueue = [];
+            }
+            
+            // Add to queue
+            speechQueue.push(text);
+            
+            // Process queue
+            processSpeechQueue();
+        }
+        
+        function processSpeechQueue() {
+            if (speechQueue.length === 0 || isSpeaking) return;
+            
+            const text = speechQueue.shift();
+            const utterance = new SpeechSynthesisUtterance(text);
+            
+            // Configure voice
+            utterance.rate = 0.9;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            
+            // Find a suitable voice
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(voice => 
+                voice.name.includes('English') || 
+                voice.name.includes('en-US') ||
+                voice.lang.includes('en')
+            );
+            if (preferredVoice) {
+                utterance.voice = preferredVoice;
+            }
+            
+            utterance.onstart = () => {
+                isSpeaking = true;
+            };
+            
+            utterance.onend = () => {
+                isSpeaking = false;
+                // Process next in queue
+                setTimeout(processSpeechQueue, 100);
+            };
+            
+            utterance.onerror = (event) => {
+                console.error('Speech error:', event);
+                isSpeaking = false;
+                setTimeout(processSpeechQueue, 100);
+            };
+            
+            window.speechSynthesis.speak(utterance);
+        }
+        
+        // Load voices when ready
+        function loadVoices() {
+            window.speechSynthesis.getVoices();
+        }
+        
+        if (speechEnabled) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+            loadVoices();
+        }
+
+        function updateDetectionsList(detections) {
+            if (detections.length === 0) {
+                detectionsList.innerHTML = `
+                    <p style="color: #6b7280; text-align: center; padding: 2rem 0;">
+                        No objects detected yet
+                    </p>
+                `;
+                return;
+            }
+
+            detectionsList.innerHTML = detections.map((det, index) => {
+                const iconClass = det.zone === 'danger' ? 'danger' : 
+                                 det.zone === 'warn' ? 'warning' : 'safe';
+                const icon = det.dangerous ? '⚠️' : 
+                            det.zone === 'danger' ? '🚨' : 
+                            det.zone === 'warn' ? '⚡' : '✅';
+                
+                return `
+                    <div class="detection-item ${det.dangerous ? 'dangerous' : ''}" style="animation-delay: ${index * 0.1}s">
+                        <div class="detection-icon ${iconClass}">
+                            ${icon}
+                        </div>
+                        <div class="detection-info">
+                            <div class="detection-name">${det.label.charAt(0).toUpperCase() + det.label.slice(1)}</div>
+                            <div class="detection-details">
+                                ${det.direction} • ${det.distance} • ${Math.round(det.conf * 100)}% confidence
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function addVoiceLogEntry(message, isWarning = false) {
+            const time = new Date().toLocaleTimeString();
+            const logItem = document.createElement('div');
+            logItem.className = 'log-item';
+            if (isWarning) {
+                logItem.style.borderLeftColor = 'var(--danger)';
+                logItem.style.background = 'linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05))';
+            }
+            
+            logItem.innerHTML = `
+                <div>${message}</div>
+                <div class="log-time">${time}</div>
+            `;
+            
+            // Add to top of log
+            if (voiceLog.children[0]?.textContent.includes('Voice announcements will appear here')) {
+                voiceLog.innerHTML = '';
+            }
+            
+            voiceLog.insertBefore(logItem, voiceLog.firstChild);
+            
+            // Keep only last 10 entries
+            while (voiceLog.children.length > 10) {
+                voiceLog.removeChild(voiceLog.lastChild);
+            }
+        }
+
+        function updateModeButton() {
+            const toggleBtn = document.getElementById('toggle-mode');
+            if (currentMode === 'scene') {
+                toggleBtn.classList.add('active');
+                toggleBtn.innerHTML = '<span>🎬</span> Scene Mode';
+            } else {
+                toggleBtn.classList.remove('active');
+                toggleBtn.innerHTML = '<span>🔄</span> Detect Mode';
+            }
+        }
+
+        // Control event handlers
+        document.getElementById('toggle-mode').addEventListener('click', () => {
+            const newMode = currentMode === 'detect' ? 'scene' : 'detect';
+            fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: newMode })
+            });
+        });
+
+        document.getElementById('describe-scene').addEventListener('click', () => {
+            fetch('/api/describe_scene', { method: 'POST' });
+        });
+
+        confidenceSlider.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            confidenceValue.textContent = `${value}%`;
+            currentConfidence = value / 100;
+            
+            // Send to server
+            fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confidence: currentConfidence })
+            });
+        });
+
+        // Voice control event handlers
+        document.getElementById('toggle-voice').addEventListener('click', () => {
+            speechEnabled = !speechEnabled;
+            const voiceBtn = document.getElementById('toggle-voice');
+            if (speechEnabled) {
+                voiceBtn.innerHTML = '<span>🔊</span> Voice ON';
+                voiceBtn.classList.remove('active');
+            } else {
+                voiceBtn.innerHTML = '<span>🔇</span> Voice OFF';
+                voiceBtn.classList.add('active');
+                // Stop any ongoing speech
+                if (isSpeaking) {
+                    window.speechSynthesis.cancel();
+                    speechQueue = [];
+                    isSpeaking = false;
+                }
+            }
+        });
+
+        document.getElementById('test-voice').addEventListener('click', () => {
+            if (speechEnabled) {
+                speak("Voice test successful. Blind assist system is ready.", true);
+            }
+        });
+
+        // Initialize
+        updateModeButton();
+    </script>
+</body>
+</html>

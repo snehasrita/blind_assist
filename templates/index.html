@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlindAssist - AI Vision System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f1114 0%, #1a1d29 100%);
+            color: #ebedf0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: rgba(22, 26, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #373e53;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3b82f6, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid #10b981;
+            border-radius: 20px;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .video-section {
+            background: rgba(22, 26, 40, 0.6);
+            border-radius: 12px;
+            border: 1px solid #373e53;
+            overflow: hidden;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            background: #0f1114;
+        }
+
+        #video-feed {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            right: 1rem;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .video-stats {
+            background: rgba(15, 17, 20, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .stat-label {
+            color: #9ca3af;
+        }
+
+        .stat-value {
+            color: #ebedf0;
+            font-weight: 600;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .panel {
+            background: rgba(22, 26, 40, 0.6);
+            border: 1px solid #373e53;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .panel-header {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #ebedf0;
+        }
+
+        .detection-item {
+            background: rgba(32, 38, 56, 0.6);
+            border: 1px solid #373e53;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.3s ease;
+        }
+
+        .detection-item:hover {
+            transform: translateX(4px);
+            border-color: #4b5563;
+        }
+
+        .detection-item.dangerous {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .detection-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .detection-icon.safe { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .detection-icon.warning { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+        .detection-icon.danger { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+        .detection-info {
+            flex: 1;
+        }
+
+        .detection-name {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .detection-details {
+            font-size: 0.875rem;
+            color: #9ca3af;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        
+        @media (max-width: 640px) {
+            .controls {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .btn {
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(55, 62, 83, 0.6);
+            color: #ebedf0;
+            border: 1px solid #373e53;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(55, 62, 83, 0.8);
+            border-color: #4b5563;
+        }
+
+        .btn.active {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .slider-control {
+            margin-top: 1rem;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #373e53;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            cursor: pointer;
+            border: none;
+        }
+
+        .voice-log {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            background: rgba(32, 38, 56, 0.4);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .log-time {
+            color: #6b7280;
+            font-size: 0.75rem;
+        }
+
+        .connection-status {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            background: rgba(22, 26, 40, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: 1px solid #373e53;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .connection-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10b981;
+        }
+
+        .connection-dot.disconnected {
+            background: #ef4444;
+        }
+
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .header {
+                padding: 1rem;
+            }
+            
+            .main-container {
+                padding: 1rem;
+                gap: 1rem;
+            }
+            
+            .sidebar {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <h1>🦯 BlindAssist</h1>
+        </div>
+        <div class="status-indicator">
+            <div class="status-dot"></div>
+            <span id="status-text">System Active</span>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <section class="video-section">
+            <div class="video-container">
+                <img id="video-feed" src="" alt="Camera feed">
+                <div class="video-overlay">
+                    <div class="video-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">FPS:</span>
+                            <span class="stat-value" id="fps">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Mode:</span>
+                            <span class="stat-value" id="mode-display">DETECT</span>
+                        </div>
+                    </div>
+                    <div class="video-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Conf:</span>
+                            <span class="stat-value" id="conf-display">45%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Objects:</span>
+                            <span class="stat-value" id="object-count">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="sidebar">
+            <div class="panel">
+                <h2 class="panel-header">🎯 Detections</h2>
+                <div id="detections-list">
+                    <p style="color: #6b7280; text-align: center; padding: 2rem 0;">
+                        No objects detected yet
+                    </p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2 class="panel-header">🎮 Controls</h2>
+                <div class="controls">
+                    <button id="toggle-mode" class="btn btn-secondary">
+                        <span>🔄</span> Toggle Mode
+                    </button>
+                    <button id="describe-scene" class="btn btn-primary">
+                        <span>🔍</span> Describe Scene
+                    </button>
+                    <button id="toggle-voice" class="btn btn-secondary">
+                        <span>🔊</span> Voice ON
+                    </button>
+                    <button id="test-voice" class="btn btn-secondary">
+                        <span>🎤</span> Test Voice
+                    </button>
+                </div>
+                <div class="slider-control">
+                    <div class="slider-label">
+                        <span>Confidence Threshold</span>
+                        <span id="confidence-value">45%</span>
+                    </div>
+                    <input type="range" id="confidence-slider" class="slider" 
+                           min="10" max="95" value="45" step="5">
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2 class="panel-header">🔊 Voice Log</h2>
+                <div id="voice-log" class="voice-log">
+                    <p style="color: #6b7280; text-align: center; padding: 1rem 0;">
+                        Voice announcements will appear here
+                    </p>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <div class="connection-status">
+        <div class="connection-dot" id="connection-dot"></div>
+        <span id="connection-text">Connected</span>
+    </div>
+
+    <script>
+        // Socket.IO connection
+        const socket = io();
+        let currentMode = 'detect';
+        let currentConfidence = 0.45;
+        
+        // Text-to-Speech setup
+        let speechEnabled = true;
+        let speechQueue = [];
+        let isSpeaking = false;
+        
+        // Check for speech synthesis support
+        if ('speechSynthesis' in window) {
+            console.log('Speech synthesis supported');
+        } else {
+            console.log('Speech synthesis not supported');
+            speechEnabled = false;
+        }
+
+        // DOM elements
+        const videoFeed = document.getElementById('video-feed');
+        const fpsDisplay = document.getElementById('fps');
+        const modeDisplay = document.getElementById('mode-display');
+        const confDisplay = document.getElementById('conf-display');
+        const objectCount = document.getElementById('object-count');
+        const detectionsList = document.getElementById('detections-list');
+        const voiceLog = document.getElementById('voice-log');
+        const confidenceSlider = document.getElementById('confidence-slider');
+        const confidenceValue = document.getElementById('confidence-value');
+        const connectionDot = document.getElementById('connection-dot');
+        const connectionText = document.getElementById('connection-text');
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            connectionDot.classList.remove('disconnected');
+            connectionText.textContent = 'Connected';
+            
+            // Announce system ready
+            setTimeout(() => {
+                if (speechEnabled) {
+                    speak("Blind assist system active. Scanning ahead.", true);
+                }
+            }, 1000);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            connectionDot.classList.add('disconnected');
+            connectionText.textContent = 'Disconnected';
+        });
+
+        socket.on('frame', (data) => {
+            // Update video feed
+            videoFeed.src = `data:image/jpeg;base64,${data.image}`;
+            
+            // Update stats
+            fpsDisplay.textContent = data.fps.toFixed(1);
+            modeDisplay.textContent = data.mode.toUpperCase();
+            confDisplay.textContent = `${Math.round(data.confidence * 100)}%`;
+            objectCount.textContent = data.detections.length;
+            
+            // Update detections list
+            updateDetectionsList(data.detections);
+        });
+
+        socket.on('detection', (data) => {
+            addVoiceLogEntry(data.message, data.dangerous);
+            // Speak the detection with priority for dangerous objects
+            speak(data.message, data.dangerous);
+        });
+
+        socket.on('scene_description', (data) => {
+            addVoiceLogEntry(data.message, false);
+            // Speak scene description
+            speak(data.message, false);
+        });
+
+        socket.on('mode_change', (data) => {
+            currentMode = data.mode;
+            modeDisplay.textContent = data.mode.toUpperCase();
+            updateModeButton();
+        });
+
+        // Helper functions
+        function speak(text, priority = false) {
+            if (!speechEnabled) return;
+            
+            // Stop current speech if priority
+            if (priority && isSpeaking) {
+                window.speechSynthesis.cancel();
+                speechQueue = [];
+            }
+            
+            // Add to queue
+            speechQueue.push(text);
+            
+            // Process queue
+            processSpeechQueue();
+        }
+        
+        function processSpeechQueue() {
+            if (speechQueue.length === 0 || isSpeaking) return;
+            
+            const text = speechQueue.shift();
+            const utterance = new SpeechSynthesisUtterance(text);
+            
+            // Configure voice
+            utterance.rate = 0.9;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            
+            // Find a suitable voice
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(voice => 
+                voice.name.includes('English') || 
+                voice.name.includes('en-US') ||
+                voice.lang.includes('en')
+            );
+            if (preferredVoice) {
+                utterance.voice = preferredVoice;
+            }
+            
+            utterance.onstart = () => {
+                isSpeaking = true;
+            };
+            
+            utterance.onend = () => {
+                isSpeaking = false;
+                // Process next in queue
+                setTimeout(processSpeechQueue, 100);
+            };
+            
+            utterance.onerror = (event) => {
+                console.error('Speech error:', event);
+                isSpeaking = false;
+                setTimeout(processSpeechQueue, 100);
+            };
+            
+            window.speechSynthesis.speak(utterance);
+        }
+        
+        // Load voices when ready
+        function loadVoices() {
+            window.speechSynthesis.getVoices();
+        }
+        
+        if (speechEnabled) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+            loadVoices();
+        }
+        function updateDetectionsList(detections) {
+            if (detections.length === 0) {
+                detectionsList.innerHTML = `
+                    <p style="color: #6b7280; text-align: center; padding: 2rem 0;">
+                        No objects detected yet
+                    </p>
+                `;
+                return;
+            }
+
+            detectionsList.innerHTML = detections.map(det => {
+                const iconClass = det.zone === 'danger' ? 'danger' : 
+                                 det.zone === 'warn' ? 'warning' : 'safe';
+                const icon = det.dangerous ? '⚠️' : 
+                            det.zone === 'danger' ? '🚨' : 
+                            det.zone === 'warn' ? '⚡' : '✅';
+                
+                return `
+                    <div class="detection-item ${det.dangerous ? 'dangerous' : ''}">
+                        <div class="detection-icon ${iconClass}">
+                            ${icon}
+                        </div>
+                        <div class="detection-info">
+                            <div class="detection-name">${det.label.charAt(0).toUpperCase() + det.label.slice(1)}</div>
+                            <div class="detection-details">
+                                ${det.direction} • ${det.distance} • ${Math.round(det.conf * 100)}% confidence
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function addVoiceLogEntry(message, isWarning = false) {
+            const time = new Date().toLocaleTimeString();
+            const logItem = document.createElement('div');
+            logItem.className = 'log-item';
+            if (isWarning) {
+                logItem.style.borderLeftColor = '#ef4444';
+                logItem.style.background = 'rgba(239, 68, 68, 0.1)';
+            }
+            
+            logItem.innerHTML = `
+                <div>${message}</div>
+                <div class="log-time">${time}</div>
+            `;
+            
+            // Add to top of log
+            if (voiceLog.children[0]?.textContent.includes('Voice announcements will appear here')) {
+                voiceLog.innerHTML = '';
+            }
+            
+            voiceLog.insertBefore(logItem, voiceLog.firstChild);
+            
+            // Keep only last 10 entries
+            while (voiceLog.children.length > 10) {
+                voiceLog.removeChild(voiceLog.lastChild);
+            }
+        }
+
+        function updateModeButton() {
+            const toggleBtn = document.getElementById('toggle-mode');
+            if (currentMode === 'scene') {
+                toggleBtn.classList.add('active');
+                toggleBtn.innerHTML = '<span>🎬</span> Scene Mode';
+            } else {
+                toggleBtn.classList.remove('active');
+                toggleBtn.innerHTML = '<span>🔄</span> Detect Mode';
+            }
+        }
+
+        // Control event handlers
+        document.getElementById('toggle-mode').addEventListener('click', () => {
+            const newMode = currentMode === 'detect' ? 'scene' : 'detect';
+            fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: newMode })
+            });
+        });
+
+        document.getElementById('describe-scene').addEventListener('click', () => {
+            fetch('/api/describe_scene', { method: 'POST' });
+        });
+
+        confidenceSlider.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            confidenceValue.textContent = `${value}%`;
+            currentConfidence = value / 100;
+            
+            // Send to server
+            fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confidence: currentConfidence })
+            });
+        });
+
+        // Voice control event handlers
+        document.getElementById('toggle-voice').addEventListener('click', () => {
+            speechEnabled = !speechEnabled;
+            const voiceBtn = document.getElementById('toggle-voice');
+            if (speechEnabled) {
+                voiceBtn.innerHTML = '<span>🔊</span> Voice ON';
+                voiceBtn.classList.remove('active');
+            } else {
+                voiceBtn.innerHTML = '<span>🔇</span> Voice OFF';
+                voiceBtn.classList.add('active');
+                // Stop any ongoing speech
+                if (isSpeaking) {
+                    window.speechSynthesis.cancel();
+                    speechQueue = [];
+                    isSpeaking = false;
+                }
+            }
+        });
+
+        document.getElementById('test-voice').addEventListener('click', () => {
+            if (speechEnabled) {
+                speak("Voice test successful. Blind assist system is ready.", true);
+            }
+        });
+
+        // Initialize
+        updateModeButton();
+    </script>
+</body>
+</html>
